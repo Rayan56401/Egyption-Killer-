@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Egyptian Killer - Ancient Temple Grounds</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  background: #120f1d;
+  color: white;
+  font-family: 'Courier New', Courier, monospace;
+  overflow: hidden;
+  touch-action: none;
+}
+
+#gameWrap {
+  position: relative;
+  width: 100vw;
+  height: 100dvh;
+  background: #120f1d;
+  overflow: hidden;
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  touch-action: none;
+}
+
+#hud {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: clamp(12px, 3vw, 18px);
+  font-weight: bold;
+  color: #ffd34e;
+  text-shadow: 0 0 8px rgba(255, 211, 78, 0.9);
+  pointer-events: none;
+}
+
+#controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+#joystick {
+  position: absolute;
+  bottom: 25px;
+  left: 25px;
+  width: 125px;
+  height: 125px;
+  border-radius: 50%;
+  background: rgba(18, 214, 197, 0.13);
+  border: 2px solid rgba(18, 214, 197, 0.7);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#knob {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  left: 34px;
+  top: 34px;
+  border-radius: 50%;
+  background: rgba(18, 214, 197, 0.9);
+  border: 2px solid #fff;
+  box-shadow: 0 0 10px #ffd34e;
+  pointer-events: none;
+}
+
+#fireButton {
+  position: absolute;
+  right: 28px;
+  bottom: 35px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: rgba(237, 84, 47, 0.92);
+  border: 3px solid #fff;
+  color: white;
+  font-weight: bold;
+  font-size: 17px;
+  box-shadow: 0 0 12px rgba(237, 84, 47, 0.92);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#fireButton:active {
+  background: #ff7043;
+  transform: scale(.95);
+}
+
+#aimHint {
+  position: absolute;
+  right: 20px;
+  bottom: 135px;
+  color: #ffd34eaa;
+  font-size: 12px;
+  text-shadow: 0 0 5px #ffd34e;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(33, 23, 15, 0.94);
+  text-align: center;
+  padding: 20px;
+}
+
+#overlay h2 {
+  font-size: clamp(28px, 6vw, 46px);
+  margin: 0 0 10px;
+  color: #ffd34e;
+  text-shadow: 0 0 15px #ffd34e;
+}
+
+#overlay button {
+  padding: 13px 25px;
+  border: 2px solid #ffd34e;
+  border-radius: 8px;
+  background: #ffd34e;
+  color: #120f1d;
+  font-weight: bold;
+  font-size: 16px;
+  box-shadow: 0 0 10px rgba(244, 198, 106, 0.5);
+  cursor: pointer;
+}
+
+#rotateMessage {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: #120f1d;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 25px;
+  font-size: 22px;
+  color: #ffd34e;
+}
+
+@media (orientation: portrait) {
+  #rotateMessage {
+    display: flex;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div id="gameWrap">
+
+  <canvas id="game" width="960" height="600"></canvas>
+
+  <div id="hud">
+    <span>❤️ <span id="health">3</span></span>
+    <span>🏺 <span id="remaining">8</span></span>
+    <span>💎 <span id="score">0</span></span>
+    <span>⏱️ <span id="timer">75</span>s</span>
+  </div>
+
+  <div id="controls">
+    <div id="joystick">
+      <div id="knob"></div>
+    </div>
+
+    <div id="aimHint">Pharaoh's Curse Auto-Lock</div>
+    <button id="fireButton">FIRE</button>
+  </div>
+
+  <div id="overlay">
+    <h2 id="result">GAME OVER</h2>
+    <p id="resultText"></p>
+    <button onclick="restartGame()">PLAY AGAIN</button>
+  </div>
+
+  <div id="rotateMessage">
+    📱<br><br>
+    Please rotate your phone to landscape mode to play!
+  </div>
+
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const VIEW_W = 960;
+const VIEW_H = 600;
+const WORLD_W = 1920;
+const WORLD_H = 1200;
+const SIZE = 40;
+const ZOOM = 0.65;
+
+const walls = [
+  [0,0,1920,40], [0,1160,1920,40],
+  [0,0,40,1200], [1880,0,40,1200],
+
+  [120,120,520,40], [760,120,440,40], [1360,120,400,40],
+  [120,280,280,40], [520,280,360,40], [1000,280,400,40],
+  [1520,280,240,40],
+
+  [240,440,40,240], [440,440,360,40],
+  [920,440,40,240], [1120,440,400,40],
+  [1600,440,40,240],
+
+  [120,760,400,40], [640,760,400,40],
+  [1160,760,40,240], [1360,760,400,40],
+
+  [280,920,40,160], [480,920,360,40],
+  [960,920,400,40], [1520,920,40,160],
+
+  [720,1040,40,120], [1120,1040,400,40]
+];
+
+let player, mummies, bullets, enemyBullets, deathEffects, exitPortal;
+let score, health, timeLeft, gameOver, portalOpening;
+let camera = {x:0,y:0};
+
+let keys = {};
+let shooting = false;
+let lastShot = 0;
+let lastTime = 0;
+
+let joystick = {x:0,y:0};
+let joystickActive = false;
+let aimPoint = {x:700,y:300};
+let aimTouchActive = false;
+let assistedTarget = null;
+
+const joystickElement = document.getElementById("joystick");
+const knob = document.getElementById("knob");
+const fireButton = document.getElementById("fireButton");
+
+function rectsOverlap(a,b) {
+  return a.x < b.x+b.w && a.x+a.w > b.x &&
+         a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+function blocked(x,y,r) {
+  const box = {x:x-r,y:y-r,w:r*2,h:r*2};
+  return walls.some(w =>
+    rectsOverlap(box,{x:w[0],y:w[1],w:w[2],h:w[3]})
+  );
+}
+
+function moveEntity(entity,dx,dy,radius) {
+  if (!blocked(entity.x+dx,entity.y,radius))
+    entity.x += dx;
+
+  if (!blocked(entity.x,entity.y+dy,radius))
+    entity.y += dy;
+}
+
+function createMummies() {
+  const positions = [
+    [1750,65], [500,350], [1800,550], [280,600],
+    [100,900], [900,1120], [1700,1100], [1200,650]
+  ];
+
+  return positions.map((p,i)=>({
+    x:p[0], y:p[1],
+    alive:true,
+    radius:15,
+    speed: (1.4 + (i%3)*0.2) * 1.5,
+    fireCooldown:Math.random()*100
+  }));
+}
+
+function restartGame() {
+  player = {x:100,y:100,radius:15,angle:0};
+  mummies = createMummies();
+  bullets = [];
+  enemyBullets = [];
+  deathEffects = [];
+  exitPortal = null;
+
+  score = 0;
+  health = 3;
+  timeLeft = 75;
+  gameOver = false;
+  portalOpening = false;
+
+  shooting = false;
+  assistedTarget = null;
+  joystick.x = 0;
+  joystick.y = 0;
+
+  document.getElementById("overlay").style.display = "none";
+  updateHUD();
+}
+
+function updateHUD() {
+  document.getElementById("health").textContent = health;
+  document.getElementById("remaining").textContent =
+    mummies.filter(m=>m.alive).length;
+  document.getElementById("score").textContent = score;
+  document.getElementById("timer").textContent =
+    Math.max(0,Math.ceil(timeLeft));
+}
+
+function endGame(victory) {
+  if(gameOver) return;
+
+  gameOver = true;
+  shooting = false;
+
+  document.getElementById("result").textContent =
+    victory ? "🏺 TOMB CLEARED!" : "☠ LOST IN THE SANDS";
+
+  document.getElementById("resultText").textContent =
+    victory ? "The Pharaoh's tomb is conquered! Score: "+score :
+    "The sands have claimed you. Score: "+score;
+
+  document.getElementById("overlay").style.display = "flex";
+}
+
+function getPath(startX,startY,endX,endY) {
+  const cols = WORLD_W/SIZE;
+  const rows = WORLD_H/SIZE;
+
+  const toCell = (x,y)=>({
+    x:Math.max(0,Math.min(cols-1,Math.floor(x/SIZE))),
+    y:Math.max(0,Math.min(rows-1,Math.floor(y/SIZE)))
+  });
+
+  const start = toCell(startX,startY);
+  const end = toCell(endX,endY);
+
+  const index = (x,y)=>y*cols+x;
+  const startI = index(start.x,start.y);
+  const endI = index(end.x,end.y);
+
+  const queue = [startI];
+  const previous = new Int32Array(cols*rows).fill(-1);
+  previous[startI] = startI;
+
+  let head = 0;
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+
+  while(head<queue.length) {
+    const current = queue[head++];
+    if(current===endI) break;
+
+    const cx=current%cols;
+    const cy=Math.floor(current/cols);
+
+    for(const [dx,dy] of dirs) {
+      const nx=cx+dx, ny=cy+dy;
+      if(nx<0 || ny<0 || nx>=cols || ny>=rows) continue;
+
+      const ni=index(nx,ny);
+      if(previous[ni]!==-1) continue;
+
+      const px=nx*SIZE+SIZE/2;
+      const py=ny*SIZE+SIZE/2;
+
+      if(blocked(px,py,13)) continue;
+
+      previous[ni]=current;
+      queue.push(ni);
+    }
+  }
+
+  if(previous[endI]===-1) return null;
+
+  let current=endI;
+  let steps=0;
+
+  while(previous[current]!==startI && current!==startI && steps++<cols*rows) {
+    current=previous[current];
+  }
+
+  return {
+    x:(current%cols)*SIZE+SIZE/2,
+    y:Math.floor(current/cols)*SIZE+SIZE/2
+  };
+}
+
+function hasClearAimPath(x1, y1, x2, y2) {
+  // Check the game-world line between player and target for temple walls.
+  const distance = Math.hypot(x2 - x1, y2 - y1);
+  const steps = Math.max(2, Math.ceil(distance / 12));
+
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const x = x1 + (x2 - x1) * t;
+    const y = y1 + (y2 - y1) * t;
+    if (walls.some(w =>
+      x >= w[0] && x <= w[0] + w[2] &&
+      y >= w[1] && y <= w[1] + w[3]
+    )) return false;
+  }
+  return true;
+}
+
+function angleDifference(a, b) {
+  let diff = a - b;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  return diff;
+}
+
+function getAimAssistAngle() {
+  const rawAngle = Math.atan2(aimPoint.y - player.y, aimPoint.x - player.x);
+  const assistRange = shooting ? 680 : 600;
+  const allowedAngle = shooting ? 0.72 : 0.48;
+
+  // Score targets by how close they are to the player's intended aim,
+  // not simply by which mummy happens to be nearest.
+  let best = null;
+  let bestScore = Infinity;
+
+  for (const m of mummies) {
+    if (!m.alive) continue;
+
+    const dx = m.x - player.x;
+    const dy = m.y - player.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > assistRange || distance < 1) continue;
+    if (!hasClearAimPath(player.x, player.y, m.x, m.y)) continue;
+
+    const targetAngle = Math.atan2(dy, dx);
+    const angleError = Math.abs(angleDifference(targetAngle, rawAngle));
+    if (angleError > allowedAngle) continue;
+
+    // Alignment matters most; distance is only a secondary preference.
+    let score = angleError * 2.4 + (distance / assistRange) * 0.22;
+
+    // Keep the current target briefly to prevent jitter when targets overlap.
+    if (m === assistedTarget) score -= 0.10;
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = m;
+    }
+  }
+
+  if (!best) {
+    assistedTarget = null;
+    return rawAngle;
+  }
+
+  assistedTarget = best;
+
+  // Slightly lead moving mummies so shots feel more intentional.
+  const dx = best.x - player.x;
+  const dy = best.y - player.y;
+  const distance = Math.hypot(dx, dy);
+  const travelTime = Math.min(distance / 10, 18);
+  const predictedX = best.x + (best.vx || 0) * travelTime;
+  const predictedY = best.y + (best.vy || 0) * travelTime;
+  const targetAngle = Math.atan2(predictedY - player.y, predictedX - player.x);
+  const error = angleDifference(targetAngle, rawAngle);
+
+  // Gentle correction when aiming; stronger correction while firing.
+  const strength = shooting ? 0.78 : 0.52;
+  return rawAngle + error * strength;
+}
+
+function shootPlayer() {
+  const now=performance.now();
+  if(now-lastShot<220 || gameOver) return;
+  lastShot=now;
+
+  bullets.push({
+    x:player.x+Math.cos(player.angle)*20,
+    y:player.y+Math.sin(player.angle)*20,
+    vx:Math.cos(player.angle)*10,
+    vy:Math.sin(player.angle)*10,
+    life:90
+  });
+}
+
+function update(dt) {
+  if(gameOver) return;
+
+  if (portalOpening) {
+    if (exitPortal) {
+      exitPortal.openProgress = Math.min(1, exitPortal.openProgress + dt * 0.0015);
+      exitPortal.timer += dt;
+      if (exitPortal.timer > 2200) {
+        endGame(true);
+      }
+    }
+    return;
+  }
+
+  timeLeft-=dt/1000;
+  if(timeLeft<=0) {
+    timeLeft=0;
+    updateHUD();
+    endGame(false);
+    return;
+  }
+
+  let dx=joystick.x;
+  let dy=joystick.y;
+
+  if(keys["w"] || keys["arrowup"]) dy-=1;
+  if(keys["s"] || keys["arrowdown"]) dy+=1;
+  if(keys["a"] || keys["arrowleft"]) dx-=1;
+  if(keys["d"] || keys["arrowright"]) dx+=1;
+
+  if(dx || dy) {
+    const length=Math.hypot(dx,dy);
+    dx=dx/length*3.5;
+    dy=dy/length*3.5;
+    moveEntity(player,dx,dy,player.radius);
+  }
+
+  player.angle = getAimAssistAngle();
+  if(shooting || keys[" "]) shootPlayer();
+
+  for(const m of mummies) {
+    if(!m.alive) continue;
+
+    const angle=Math.atan2(player.y-m.y,player.x-m.x);
+    const distance=Math.hypot(player.x-m.x,player.y-m.y);
+    const waypoint=getPath(m.x,m.y,player.x,player.y);
+
+    if(waypoint && distance>130) {
+      const a=Math.atan2(waypoint.y-m.y,waypoint.x-m.x);
+      moveEntity(m,Math.cos(a)*m.speed,Math.sin(a)*m.speed,m.radius);
+    }
+
+    m.fireCooldown-=dt/16.67;
+
+    if(distance<650 && m.fireCooldown<=0) {
+      enemyBullets.push({
+        x:m.x+Math.cos(angle)*20,
+        y:m.y+Math.sin(angle)*20,
+        vx:Math.cos(angle)*4.5,
+        vy:Math.sin(angle)*4.5,
+        life:160
+      });
+      m.fireCooldown=80+Math.random()*40;
+    }
+  }
+
+  for(const b of bullets) {
+    b.x+=b.vx;
+    b.y+=b.vy;
+    b.life--;
+
+    if(blocked(b.x,b.y,4)) b.life=0;
+
+    for(const m of mummies) {
+      if(!m.alive) continue;
+
+      if(Math.hypot(b.x-m.x,b.y-m.y)<m.radius+5) {
+        m.alive=false;
+        b.life=0;
+        score+=100;
+
+        deathEffects.push({
+          x: m.x,
+          y: m.y,
+          progress: 0
+        });
+      }
+    }
+  }
+
+  bullets=bullets.filter(b=>b.life>0);
+
+  for(const b of enemyBullets) {
+    b.x+=b.vx;
+    b.y+=b.vy;
+    b.life--;
+
+    if(blocked(b.x,b.y,4)) b.life=0;
+
+    if(Math.hypot(b.x-player.x,b.y-player.y)<player.radius+5) {
+      b.life=0;
+      health--;
+      if(health<=0) endGame(false);
+    }
+  }
+
+  enemyBullets=enemyBullets.filter(b=>b.life>0);
+
+  for(let i = deathEffects.length - 1; i >= 0; i--) {
+    deathEffects[i].progress += dt * 0.00115;
+    if(deathEffects[i].progress >= 1) {
+      deathEffects.splice(i, 1);
+    }
+  }
+
+  if(mummies.every(m=>!m.alive) && !portalOpening) {
+    portalOpening = true;
+    exitPortal = {
+      x: player.x,
+      y: player.y,
+      openProgress: 0,
+      timer: 0
+    };
+  }
+
+  updateHUD();
+}
+
+function updateCamera() {
+  camera.x=player.x-VIEW_W/(2*ZOOM);
+  camera.y=player.y-VIEW_H/(2*ZOOM);
+
+  camera.x=Math.max(0,Math.min(WORLD_W-VIEW_W/ZOOM,camera.x));
+  camera.y=Math.max(0,Math.min(WORLD_H-VIEW_H/ZOOM,camera.y));
+}
+
+function drawAimLine() {
+  ctx.save();
+  ctx.strokeStyle = "rgba(244, 198, 106, 0.35)";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(player.x, player.y);
+  ctx.lineTo(player.x + Math.cos(player.angle) * 350, player.y + Math.sin(player.angle) * 350);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPlayer() {
+  ctx.save();
+  ctx.translate(player.x,player.y);
+  ctx.rotate(player.angle);
+
+  ctx.fillStyle="#ffd34e";
+  ctx.fillRect(-12,-11,24,22);
+
+  ctx.fillStyle="#ffffff";
+  ctx.beginPath();
+  ctx.arc(0,-15,9,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#ffd34e";
+  ctx.fillRect(-8,-22,16,5);
+
+  ctx.fillStyle="#ed542f";
+  ctx.fillRect(5,-4,23,8);
+
+  ctx.restore();
+}
+
+function drawMummy(m) {
+  ctx.save();
+  ctx.translate(m.x,m.y);
+  const angle=Math.atan2(player.y-m.y,player.x-m.x);
+  ctx.rotate(angle);
+
+  // Shadow and wrapped body.
+  ctx.fillStyle="rgba(75, 28, 15, 0.35)";
+  ctx.beginPath();
+  ctx.ellipse(0,5,17,21,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#e7d3a0";
+  ctx.beginPath();
+  ctx.ellipse(0,0,12,17,0,0,Math.PI*2);
+  ctx.fill();
+
+  // Criss-cross linen strips.
+  ctx.strokeStyle="#8d6035";
+  ctx.lineWidth=3;
+  for(let i=-13;i<=13;i+=5) {
+    ctx.beginPath();
+    ctx.moveTo(-10,i);
+    ctx.lineTo(10,i+7);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(10,i);
+    ctx.lineTo(-10,i+7);
+    ctx.stroke();
+  }
+
+  // Head wrap and glowing eyes.
+  ctx.fillStyle="#f1dfb8";
+  ctx.beginPath();
+  ctx.arc(8,-2,8,0,Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle="#8d6035";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(3,-8); ctx.lineTo(13,4);
+  ctx.moveTo(2,-2); ctx.lineTo(14,-2);
+  ctx.stroke();
+
+  ctx.fillStyle="#ff4b35";
+  ctx.shadowColor="#ff3d28";
+  ctx.shadowBlur=9;
+  ctx.beginPath();
+  ctx.arc(11,-5,2,0,Math.PI*2);
+  ctx.arc(11,1,2,0,Math.PI*2);
+  ctx.fill();
+
+  // Small bronze scarab emblem.
+  ctx.shadowBlur=0;
+  ctx.fillStyle="#12d6c5";
+  ctx.beginPath();
+  ctx.ellipse(-4,5,3,4,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawDeathEffects() {
+  for(const d of deathEffects) {
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    const p = Math.min(1, d.progress);
+    const alpha = 1 - p;
+
+    // Mummy body fades as its linen wrapping comes loose.
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.fillStyle = "#d8bd83";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 12 * (1 - p * 0.25), 17 * (1 - p * 0.25), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f1dfb8";
+    ctx.beginPath();
+    ctx.arc(8, -3, 8 * (1 - p * 0.2), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Bandage ribbons peel away one after another and spiral outward.
+    for(let i=0; i<9; i++) {
+      const delay = i * 0.055;
+      const t = Math.max(0, Math.min(1, (p - delay) / (1 - delay)));
+      if(t <= 0) continue;
+      const angle = i * 2.399 + t * 4.2;
+      const distance = 8 + t * (34 + (i % 3) * 10);
+      const length = 10 + (i % 3) * 4;
+      ctx.save();
+      ctx.translate(Math.cos(angle) * distance, Math.sin(angle) * distance);
+      ctx.rotate(angle + t * 5 + i * 0.4);
+      ctx.globalAlpha = (1 - t) * 0.98;
+      ctx.fillStyle = i % 2 ? "#f2dfb4" : "#cba66b";
+      ctx.shadowColor = "#ffd34e";
+      ctx.shadowBlur = 7 * (1 - t);
+      ctx.beginPath();
+      ctx.moveTo(-length, -2);
+      ctx.quadraticCurveTo(0, -5 - Math.sin(t * 10 + i) * 3, length, 1);
+      ctx.lineTo(length - 2, 4);
+      ctx.quadraticCurveTo(0, 0, -length + 2, 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Turquoise scarab flash and expanding golden shockwave.
+    if(p < 0.75) {
+      ctx.globalAlpha = 1 - p / 0.75;
+      ctx.strokeStyle = "#12d6c5";
+      ctx.lineWidth = 3;
+      ctx.shadowColor = "#12d6c5";
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.ellipse(0, -7, 6, 8, 0, 0, Math.PI * 2);
+      ctx.moveTo(0, 1); ctx.lineTo(0, 15);
+      ctx.moveTo(-7, 8); ctx.lineTo(7, 8);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = alpha;
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = `rgba(255, 211, 78, ${alpha})`;
+    ctx.lineWidth = 3 * (1 - p * 0.5);
+    ctx.beginPath();
+    ctx.arc(0, 0, 12 + p * 52, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = `rgba(196, 126, 52, ${alpha * 0.35})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, 8 + p * 25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawExitPortal() {
+  if (!exitPortal) return;
+  ctx.save();
+  ctx.translate(exitPortal.x, exitPortal.y);
+
+  const pulse = exitPortal.openProgress;
+  const glow = 0.55 + Math.sin(performance.now() * 0.008) * 0.18;
+
+  ctx.fillStyle="#b36b2d";
+  ctx.fillRect(-27,-39,54,78);
+  ctx.strokeStyle="#ffd34e";
+  ctx.lineWidth=4;
+  ctx.strokeRect(-27,-39,54,78);
+  ctx.fillStyle=`rgba(255, 218, 130, ${glow})`;
+  ctx.beginPath();
+  ctx.ellipse(0,0,18 + pulse*10,29 + pulse*13,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle="#151326";
+  ctx.beginPath();
+  ctx.ellipse(0,0,11 + pulse*7,21 + pulse*10,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle="#fff2b0";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(-18,-28); ctx.lineTo(18,-28);
+  ctx.moveTo(-18,28); ctx.lineTo(18,28);
+  ctx.stroke();
+  ctx.restore();
+}
+
+
+function drawGroundDetails() {
+  // Large sandstone floor slabs with chipped edges, seams and worn corners.
+  const tones = ["#b87942", "#c58a4d", "#a96d3d", "#d09a58"];
+  for (let y = 40; y < WORLD_H - 40; y += SIZE) {
+    for (let x = 40; x < WORLD_W - 40; x += SIZE) {
+      const col = Math.floor(x / SIZE), row = Math.floor(y / SIZE);
+      const hash = (col * 37 + row * 71 + col * row * 13) >>> 0;
+      const shade = tones[hash % tones.length];
+      ctx.fillStyle = shade;
+      ctx.fillRect(x + 1, y + 1, SIZE - 2, SIZE - 2);
+
+      // Warm light along one edge gives each slab a raised stone look.
+      ctx.fillStyle = "rgba(255,225,164,0.18)";
+      ctx.fillRect(x + 2, y + 2, SIZE - 4, 2);
+      ctx.fillRect(x + 2, y + 2, 2, SIZE - 4);
+      ctx.fillStyle = "rgba(67,37,22,0.22)";
+      ctx.fillRect(x + 2, y + SIZE - 4, SIZE - 4, 2);
+      ctx.fillRect(x + SIZE - 4, y + 2, 2, SIZE - 4);
+
+      // Fine cracks and little worn chips, placed deterministically.
+      if (hash % 5 === 0) {
+        ctx.strokeStyle = "rgba(75,43,27,0.38)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + 9 + (hash % 9), y + 10);
+        ctx.lineTo(x + 17, y + 17);
+        ctx.lineTo(x + 14, y + 25);
+        ctx.stroke();
+      }
+      if (hash % 7 === 0) {
+        ctx.fillStyle = "rgba(82,48,29,0.24)";
+        ctx.beginPath();
+        ctx.arc(x + 29, y + 29, 2 + (hash % 3), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Faint Egyptian tile motifs: lotus diamonds and small sun marks.
+      if (hash % 11 === 0) {
+        ctx.save();
+        ctx.translate(x + 20, y + 20);
+        ctx.strokeStyle = "rgba(48,91,105,0.32)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -8); ctx.lineTo(6, 0); ctx.lineTo(0, 8);
+        ctx.lineTo(-6, 0); ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  // Decorative props are placed only on open floor, never over a wall.
+  const blockedTile = (x, y, w = 30, h = 30) =>
+    walls.some(a => x < a[0] + a[2] && x + w > a[0] &&
+                    y < a[1] + a[3] && y + h > a[1]);
+
+  const props = [
+    ["cactus", 90, 190], ["pot", 300, 210], ["rock", 570, 190],
+    ["torch", 850, 210], ["cactus", 1080, 190], ["urn", 1450, 210],
+    ["rock", 1710, 190], ["pot", 180, 360], ["torch", 680, 360],
+    ["cactus", 1040, 360], ["urn", 1320, 360], ["rock", 1780, 360],
+    ["pot", 330, 600], ["cactus", 560, 600], ["torch", 850, 600],
+    ["rock", 1040, 600], ["urn", 1450, 600], ["cactus", 1690, 600],
+    ["torch", 180, 840], ["rock", 590, 840], ["pot", 1080, 840],
+    ["cactus", 1260, 840], ["urn", 1700, 840], ["rock", 360, 1100],
+    ["cactus", 880, 1100], ["torch", 1400, 1100]
+  ];
+
+  for (const [kind, x, y] of props) {
+    if (blockedTile(x - 15, y - 15)) continue;
+    ctx.save();
+    ctx.translate(x, y);
+    if (kind === "cactus") {
+      // Small stylized desert cactus with arms and a sandy base.
+      ctx.fillStyle = "rgba(58,34,20,0.28)";
+      ctx.beginPath(); ctx.ellipse(2, 13, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#286b4b";
+      ctx.fillRect(-6, -17, 12, 31);
+      ctx.beginPath(); ctx.arc(0, -17, 6, Math.PI, 0); ctx.fill();
+      ctx.fillRect(-15, -8, 9, 7); ctx.fillRect(-15, -13, 6, 12);
+      ctx.fillRect(6, -3, 9, 7); ctx.fillRect(9, -10, 6, 14);
+      ctx.strokeStyle = "#9ed17b"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-2, -12); ctx.lineTo(-2, 9);
+      ctx.moveTo(11, -6); ctx.lineTo(11, 1); ctx.stroke();
+    } else if (kind === "rock") {
+      ctx.fillStyle = "#79604a";
+      ctx.beginPath(); ctx.moveTo(-13, 7); ctx.lineTo(-9, -5);
+      ctx.lineTo(1, -11); ctx.lineTo(13, -3); ctx.lineTo(11, 8);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "rgba(255,220,165,0.75)";
+      ctx.beginPath(); ctx.moveTo(-7, -3); ctx.lineTo(0, -8); ctx.stroke();
+    } else if (kind === "pot" || kind === "urn") {
+      ctx.fillStyle = kind === "urn" ? "#267d80" : "#a94f32";
+      ctx.beginPath(); ctx.moveTo(-10, -7); ctx.lineTo(-7, 9);
+      ctx.quadraticCurveTo(0, 16, 7, 9); ctx.lineTo(10, -7);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#e3b56e";
+      ctx.fillRect(-11, -9, 22, 4);
+      ctx.fillStyle = "rgba(40,25,20,0.35)";
+      ctx.fillRect(-6, -5, 12, 3);
+      if (kind === "urn") {
+        ctx.strokeStyle = "#f3ce82"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(-5, 1); ctx.lineTo(0, 8); ctx.lineTo(5, 1); ctx.stroke();
+      }
+    } else if (kind === "torch") {
+      ctx.fillStyle = "#70452c"; ctx.fillRect(-3, -2, 6, 18);
+      ctx.fillStyle = "#ff9a32";
+      ctx.beginPath(); ctx.moveTo(0, -18); ctx.quadraticCurveTo(11, -7, 0, -3);
+      ctx.quadraticCurveTo(-9, -8, 0, -18); ctx.fill();
+      ctx.fillStyle = "#ffe477";
+      ctx.beginPath(); ctx.arc(0, -9, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,157,49,0.16)";
+      ctx.beginPath(); ctx.arc(0, -9, 16, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function draw() {
+  updateCamera();
+
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,VIEW_W,VIEW_H);
+
+  ctx.setTransform(
+    ZOOM,0,0,ZOOM,
+    -camera.x*ZOOM,
+    -camera.y*ZOOM
+  );
+
+  ctx.fillStyle="#49301f";
+  ctx.fillRect(0,0,WORLD_W,WORLD_H);
+  drawGroundDetails();
+
+  // Subtle desert-sand texture.
+  ctx.save();
+  ctx.globalAlpha = 0.13;
+  ctx.fillStyle = "#d5a94f";
+  for (let i = 0; i < 260; i++) {
+    const sx = (i * 197 + 43) % WORLD_W;
+    const sy = (i * 113 + 29) % WORLD_H;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 2 + (i % 3), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  ctx.strokeStyle="#75502d";
+  ctx.lineWidth=1;
+
+  for(let x=0;x<=WORLD_W;x+=SIZE) {
+    ctx.beginPath();
+    ctx.moveTo(x,0);
+    ctx.lineTo(x,WORLD_H);
+    ctx.stroke();
+  }
+
+  for(let y=0;y<=WORLD_H;y+=SIZE) {
+    ctx.beginPath();
+    ctx.moveTo(0,y);
+    ctx.lineTo(WORLD_W,y);
+    ctx.stroke();
+  }
+
+  for(const w of walls) {
+    ctx.fillStyle="#8b4728";
+    ctx.fillRect(w[0],w[1],w[2],w[3]);
+    ctx.fillStyle="rgba(255, 225, 164, 0.18)";
+    ctx.fillRect(w[0]+5,w[1]+5,Math.max(0,w[2]-10),Math.max(0,w[3]-10));
+    ctx.strokeStyle="#ffc84a";
+    ctx.lineWidth=3;
+    ctx.strokeRect(w[0],w[1],w[2],w[3]);
+    ctx.strokeStyle="rgba(74, 75, 23, 0.55)";
+    ctx.lineWidth=1;
+    ctx.strokeRect(w[0]+4,w[1]+4,w[2]-8,w[3]-8);
+  }
+
+  drawAimLine();
+  drawDeathEffects();
+  drawExitPortal();
+
+  ctx.fillStyle="#ffd34e";
+  for(const b of bullets) {
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,5,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle="#ed542f";
+  for(const b of enemyBullets) {
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,5,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  for(const m of mummies) {
+    if(m.alive) drawMummy(m);
+  }
+
+  drawPlayer();
+
+  ctx.setTransform(1,0,0,1,0,0);
+}
+
+function screenToWorld(clientX,clientY) {
+  const rect=canvas.getBoundingClientRect();
+  const scale=Math.min(rect.width/VIEW_W, rect.height/VIEW_H);
+  const drawnW=VIEW_W*scale;
+  const drawnH=VIEW_H*scale;
+  const offsetX=(rect.width-drawnW)/2;
+  const offsetY=(rect.height-drawnH)/2;
+  const screenX=(clientX-rect.left-offsetX)/scale;
+  const screenY=(clientY-rect.top-offsetY)/scale;
+
+  return {
+    x:screenX/ZOOM+camera.x,
+    y:screenY/ZOOM+camera.y
+  };
+}
+
+function moveJoystick(e) {
+  const rect=joystickElement.getBoundingClientRect();
+  const centerX=rect.left+rect.width/2;
+  const centerY=rect.top+rect.height/2;
+
+  let x=e.clientX-centerX;
+  let y=e.clientY-centerY;
+
+  const max=42;
+  const distance=Math.hypot(x,y);
+
+  if(distance>max) {
+    x=x/distance*max;
+    y=y/distance*max;
+  }
+
+  joystick.x=x/max;
+  joystick.y=y/max;
+  knob.style.transform=`translate(${x}px,${y}px)`;
+}
+
+function releaseJoystick() {
+  joystick.x=0;
+  joystick.y=0;
+  joystickActive=false;
+  knob.style.transform="translate(0px,0px)";
+}
+
+joystickElement.addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  joystickActive=true;
+  joystickElement.setPointerCapture(e.pointerId);
+  moveJoystick(e);
+});
+
+joystickElement.addEventListener("pointermove",e=>{
+  if(joystickActive) moveJoystick(e);
+});
+
+joystickElement.addEventListener("pointerup",releaseJoystick);
+joystickElement.addEventListener("pointercancel",releaseJoystick);
+
+canvas.addEventListener("pointerdown",e=>{
+  if(e.pointerType==="touch") {
+    e.preventDefault();
+    aimTouchActive=true;
+    aimPoint=screenToWorld(e.clientX,e.clientY);
+  }
+});
+
+canvas.addEventListener("pointermove",e=>{
+  if(e.pointerType==="touch" && aimTouchActive) {
+    aimPoint=screenToWorld(e.clientX,e.clientY);
+  }
+});
+
+canvas.addEventListener("pointerup",()=> aimTouchActive=false);
+canvas.addEventListener("pointercancel",()=> aimTouchActive=false);
+
+fireButton.addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  shooting=true;
+  fireButton.setPointerCapture(e.pointerId);
+});
+
+fireButton.addEventListener("pointerup",()=> shooting=false);
+fireButton.addEventListener("pointercancel",()=> shooting=false);
+
+window.addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  keys[k]=true;
+  if(k.startsWith("arrow") || k===" ") e.preventDefault();
+});
+
+window.addEventListener("keyup",e=> keys[e.key.toLowerCase()]=false);
+
+canvas.addEventListener("mousemove",e=>{
+  if(e.pointerType==="mouse") {
+    aimPoint=screenToWorld(e.clientX,e.clientY);
+  }
+});
+
+canvas.addEventListener("mousedown",e=>{
+  if(e.pointerType==="mouse") shooting=true;
+});
+
+window.addEventListener("mouseup",()=> shooting=false);
+
+function gameLoop(timestamp) {
+  const dt=Math.min(timestamp-lastTime || 16,50);
+  lastTime=timestamp;
+
+  update(dt);
+  draw();
+
+  requestAnimationFrame(gameLoop);
+}
+
+restartGame();
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
